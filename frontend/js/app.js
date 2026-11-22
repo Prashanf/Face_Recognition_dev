@@ -45,6 +45,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectionName = document.getElementById("selectionName");
   const selectionSub = document.getElementById("selectionSub");
   const selectionClear = document.getElementById("selectionClear");
+  const selectionRefFig = document.getElementById("selectionRefFig");
+  const selectionRefThumb = document.getElementById("selectionRefThumb");
+  const compareBtn = document.getElementById("compareBtn");
+
+  // DOM Elements - Compare modal
+  const compareModal = document.getElementById("compareModal");
+  const compareTitle = document.getElementById("compareTitle");
+  const compareSub = document.getElementById("compareSub");
+  const compareGroupImg = document.getElementById("compareGroupImg");
+  const compareRefImg = document.getElementById("compareRefImg");
+  const compareClose = document.getElementById("compareClose");
 
   // DOM Elements - Step 3 Recognition & Results
   const recognizeBtn = document.getElementById("recognizeBtn");
@@ -83,6 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentGroupFile = null;
   let currentFacesData = null; // Holds the most recent response from /api/detect or /api/recognize
   let selectedFaceId = null;   // Set by clicking a box on the photo or a card in the list
+  let referencePhotos = new Map(); // person name -> object URL of the original reference photo
 
   // =========================================================================
   // 1. Step 1: Reference Folder Upload & Registration
@@ -139,6 +151,9 @@ document.addEventListener("DOMContentLoaded", () => {
         folderProgressBox.style.display = "none";
       }, 1000);
 
+      // Keep the original photos so matches can be compared against them
+      setReferencePhotos(imageFiles);
+
       // Success State UI
       folderBtn.disabled = false;
       folderBtn.className = "btn btn-state-success";
@@ -173,6 +188,26 @@ document.addEventListener("DOMContentLoaded", () => {
       alert(`Registration failed: ${err.message}`);
     }
   });
+
+  /** Mirrors the backend's clean_person_name() so a match name maps back to its file. */
+  function cleanPersonName(filename) {
+    const base = filename.replace(/\\/g, "/").split("/").pop();
+    const dot = base.lastIndexOf(".");
+    let stem = dot > 0 ? base.slice(0, dot) : base;
+    stem = stem.replace(/\s*\(\d+\)$/, "").replace(/_/g, " ");
+    return stem.replace(/\s+/g, " ").trim();
+  }
+
+  function setReferencePhotos(files) {
+    referencePhotos.forEach((url) => URL.revokeObjectURL(url));
+    referencePhotos = new Map();
+    files.forEach((file) => {
+      const name = cleanPersonName(file.name);
+      const previous = referencePhotos.get(name);
+      if (previous) URL.revokeObjectURL(previous); // duplicate names: last file wins, like the backend
+      referencePhotos.set(name, URL.createObjectURL(file));
+    });
+  }
 
   // Toggle warnings list dropdown
   warningsToggleBtn.addEventListener("click", () => {
@@ -604,7 +639,12 @@ document.addEventListener("DOMContentLoaded", () => {
   selectionClear.addEventListener("click", () => selectFace(null));
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && selectedFaceId !== null) selectFace(null);
+    if (e.key !== "Escape") return;
+    if (compareModal.style.display !== "none") {
+      closeCompare();
+    } else if (selectedFaceId !== null) {
+      selectFace(null);
+    }
   });
 
   function selectFace(faceId) {
@@ -665,9 +705,51 @@ document.addEventListener("DOMContentLoaded", () => {
       selectionSub.textContent = `Identified · ${Math.round((face.confidence || 0) * 100)}% similarity`;
     }
 
+    const refUrl = !isRecognized || face.is_unknown ? null : referencePhotos.get(face.name);
+    selectionRefFig.style.display = refUrl ? "" : "none";
+    compareBtn.style.display = refUrl ? "" : "none";
+    if (refUrl) selectionRefThumb.src = refUrl;
+
     selectionEmpty.style.display = "none";
     selectionInfo.style.display = "flex";
   }
+
+  // =========================================================================
+  // 6b. Side-by-side comparison with the original reference photo
+  // =========================================================================
+
+  function selectedFace() {
+    return currentFacesData && currentFacesData.faces
+      ? currentFacesData.faces.find((f) => f.id === selectedFaceId) || null
+      : null;
+  }
+
+  function openCompare(face) {
+    const refUrl = referencePhotos.get(face.name);
+    if (!refUrl) return;
+
+    compareTitle.textContent = face.name;
+    compareSub.textContent = `${Math.round((face.confidence || 0) * 100)}% similarity`;
+    compareGroupImg.src = cropFace(fullResImage, face.bbox, 640);
+    compareRefImg.src = refUrl;
+    compareModal.style.display = "flex";
+    compareClose.focus();
+  }
+
+  function closeCompare() {
+    compareModal.style.display = "none";
+    compareRefImg.removeAttribute("src");
+  }
+
+  compareBtn.addEventListener("click", () => {
+    const face = selectedFace();
+    if (face) openCompare(face);
+  });
+  selectionRefThumb.addEventListener("click", () => compareBtn.click());
+  compareClose.addEventListener("click", closeCompare);
+  compareModal.addEventListener("click", (e) => {
+    if (e.target === compareModal) closeCompare();
+  });
 
   function setSelectionColors(color) {
     const ink = color === COLOR_MATCHED ? "#047857" : color === COLOR_UNKNOWN ? "#b45309" : "#1d4ed8";
@@ -749,6 +831,17 @@ document.addEventListener("DOMContentLoaded", () => {
     details.querySelector(".person-name").textContent = displayName;
 
     card.append(thumb, details);
+
+    // Original reference photo next to the face crop, for a quick visual check
+    const refUrl = isUnknown ? null : referencePhotos.get(face.name);
+    if (refUrl) {
+      const ref = document.createElement("img");
+      ref.className = "ref-thumb";
+      ref.src = refUrl;
+      ref.alt = `Reference photo of ${face.name}`;
+      ref.title = "Reference photo";
+      card.appendChild(ref);
+    }
 
     // Click a card -> select that face and spotlight it on the photo
     const toggle = () => selectFace(selectedFaceId === face.id ? null : face.id);

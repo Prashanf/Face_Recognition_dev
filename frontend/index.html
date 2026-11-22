@@ -74,11 +74,19 @@
             <span>Click a face in the photo, or a person in the list, to locate them.</span>
           </div>
           <div class="selection-info" id="selectionInfo" style="display: none;">
-            <img class="selection-thumb" id="selectionThumb" alt="">
+            <figure class="selection-fig">
+              <img class="selection-thumb" id="selectionThumb" alt="">
+              <figcaption>In photo</figcaption>
+            </figure>
+            <figure class="selection-fig" id="selectionRefFig" style="display: none;">
+              <img class="selection-thumb ref" id="selectionRefThumb" alt="Reference photo">
+              <figcaption>Reference</figcaption>
+            </figure>
             <div class="selection-text">
               <span class="selection-name" id="selectionName"></span>
               <span class="selection-sub" id="selectionSub"></span>
             </div>
+            <button type="button" class="selection-compare" id="compareBtn" style="display: none;">Compare</button>
             <button type="button" class="selection-clear" id="selectionClear" title="Clear selection (Esc)">Clear</button>
           </div>
         </div>
@@ -188,6 +196,29 @@
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- Side-by-side comparison: face in the group photo vs. original reference photo -->
+  <div class="modal-backdrop" id="compareModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 class="modal-title" id="compareTitle"></h3>
+          <p class="modal-sub" id="compareSub"></p>
+        </div>
+        <button type="button" class="modal-close" id="compareClose" aria-label="Close comparison">&times;</button>
+      </div>
+      <div class="compare-grid">
+        <figure class="compare-fig">
+          <div class="compare-frame"><img id="compareGroupImg" alt="Face in group photo"></div>
+          <figcaption>In the group photo</figcaption>
+        </figure>
+        <figure class="compare-fig">
+          <div class="compare-frame"><img id="compareRefImg" alt="Original reference photo"></div>
+          <figcaption id="compareRefCaption">Reference photo</figcaption>
+        </figure>
+      </div>
+    </div>
   </div>
 
   <script src="js/app.js"></script>
