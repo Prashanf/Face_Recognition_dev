@@ -3,49 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Who Is in the Photo? — Face Detection</title>
+  <title>Who Is in the Photo? — Face Recognition</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div class="app-card">
+  <!-- Global Application Shell -->
+  <div class="app-layout">
+    <!-- Header -->
     <header class="app-header">
-      <h1 class="app-title">Who Is in the Photo?</h1>
-      <p class="app-subtitle">Face Detection</p>
+      <div class="header-content">
+        <h1 class="app-title">🔍 Who Is in the Photo?</h1>
+        <p class="app-subtitle">Identify people in group photos using face recognition</p>
+      </div>
     </header>
 
-    <main class="viewer-section">
-      <!-- Empty State -->
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">📷</div>
-        <p class="empty-title">Upload a photo to begin</p>
-        <p class="empty-subtitle">Supports JPG, PNG, WEBP group photographs</p>
-      </div>
+    <!-- Main Workspace: Two-Column Grid -->
+    <main class="main-container">
+      <!-- Left Column: Photo Viewer -->
+      <section class="viewer-column">
+        <div class="photo-viewer-card" id="viewerCard">
+          <!-- Empty State (before photo is uploaded) -->
+          <div class="empty-state" id="emptyState">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <p class="empty-title">Upload a group photo to get started</p>
+            <p class="empty-subtitle">Supported: JPG, PNG, WebP</p>
+          </div>
 
-      <!-- Photo Stage with Canvas Overlay -->
-      <div class="photo-stage" id="photoStage" style="display: none;">
-        <img id="displayImage" alt="Uploaded group photo">
-        <canvas id="overlayCanvas"></canvas>
-      </div>
+          <!-- Active Photo Stage with Canvas Overlay -->
+          <div class="photo-stage" id="photoStage" style="display: none;">
+            <!-- Hidden full-resolution image used for pristine 48x48 thumbnail extraction -->
+            <img id="fullResImage" style="display: none;" alt="Full resolution source">
+            <!-- Displayed scaled image -->
+            <img id="displayImage" alt="Group view">
+            <!-- Interactive canvas overlay -->
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Control & Results Panels -->
+      <aside class="controls-column">
+        <!-- Control Panel Card -->
+        <div class="control-panel-card">
+          <!-- Section A: Reference Folder (Step 1) -->
+          <div class="panel-section">
+            <div class="section-badge-row">
+              <span class="pill-badge pill-step1">Step 1</span>
+              <button type="button" class="link-btn" id="reuploadFolderLink" style="display: none;">Re-upload</button>
+            </div>
+            <h2 class="section-title">Reference Folder</h2>
+            <p class="section-desc">Select a folder with individual photos. Filenames become names.</p>
+            
+            <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*" class="hidden-input">
+            <button type="button" class="btn btn-primary" id="folderBtn">
+              📁 Select Folder
+            </button>
+
+            <!-- Folder Upload Progress -->
+            <div class="progress-box" id="folderProgressBox" style="display: none;">
+              <div class="progress-bar">
+                <div class="progress-bar-fill" id="folderProgressBar"></div>
+              </div>
+              <p class="progress-text" id="folderProgressText">Processing...</p>
+            </div>
+
+            <!-- Warnings Toggle & Dropdown -->
+            <div class="warnings-wrapper" id="warningsWrapper" style="display: none;">
+              <button type="button" class="warnings-toggle-btn" id="warningsToggleBtn">
+                ⚠ <span id="warningsCount">0</span> warnings <span class="arrow-icon">▼</span>
+              </button>
+              <ul class="warnings-list" id="warningsList" style="display: none;"></ul>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- Section B: Group Photo (Step 2) -->
+          <div class="panel-section">
+            <div class="section-badge-row">
+              <span class="pill-badge pill-step2">Step 2</span>
+              <button type="button" class="link-btn" id="changePhotoLink" style="display: none;">Change photo</button>
+            </div>
+            <h2 class="section-title">Group Photo</h2>
+            <p class="section-desc">Upload a group photo to identify people.</p>
+
+            <input type="file" id="groupPhotoInput" accept="image/*" class="hidden-input">
+            <div class="drop-target" id="groupDropTarget">
+              <button type="button" class="btn btn-indigo" id="groupPhotoBtn">
+                📷 Upload Photo
+              </button>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- Section C: Recognize Faces Action -->
+          <div class="panel-section action-section">
+            <button type="button" class="btn btn-success" id="recognizeBtn" disabled>
+              🔍 Recognize Faces
+            </button>
+
+            <!-- Threshold Slider -->
+            <div class="threshold-container">
+              <div class="threshold-header">
+                <label for="thresholdSlider" class="threshold-label">Similarity Threshold</label>
+                <span class="threshold-val-badge" id="thresholdValue">0.40</span>
+              </div>
+              <input type="range" id="thresholdSlider" min="0.20" max="0.70" step="0.05" value="0.40">
+              <div class="threshold-scale">
+                <span>Stricter</span>
+                <span>Lenient</span>
+              </div>
+              <p class="threshold-hint">Lower = fewer matches. Higher = more matches.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Panel Card (Hidden initially until recognition runs) -->
+        <div class="results-panel-card" id="resultsPanel" style="display: none;">
+          <!-- Summary Header & Proportion Bar -->
+          <div class="results-summary-header">
+            <h3 class="results-title" id="summaryTitle">Recognition Results</h3>
+            <p class="results-subtitle" id="summarySubtitle">0 matched, 0 unknown out of 0 detected</p>
+            
+            <div class="proportion-bar" id="proportionBar">
+              <div class="proportion-matched" id="proportionMatched" style="width: 0%;"></div>
+              <div class="proportion-unknown" id="proportionUnknown" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <!-- Results List Grouped into Identified & Unknown -->
+          <div class="results-scroll-list" id="resultsList">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+      </aside>
     </main>
-
-    <!-- Hidden File Input -->
-    <input type="file" id="fileInput" accept="image/*" class="hidden-input">
-
-    <!-- Action Buttons -->
-    <div class="controls-toolbar">
-      <button type="button" class="btn btn-primary" id="uploadBtn">
-        <span class="btn-icon">📷</span> Upload Photo
-      </button>
-      <button type="button" class="btn btn-secondary" id="detectBtn" disabled>
-        <span class="btn-icon" id="detectIcon">🔍</span>
-        <span id="detectText">Detect Faces</span>
-      </button>
-    </div>
-
-    <!-- Status Line -->
-    <div class="status-container" id="statusContainer">
-      <p class="status-text" id="statusText">Select a group photo to get started</p>
-    </div>
   </div>
 
   <script src="js/app.js"></script>
