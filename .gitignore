@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Internal prompt & dev docs
+dev_docs/
+
+# Test data (generated separately)
+test_data/*
+!test_data/*/
+test_data/*/*
+!test_data/*/.gitkeep
+
+# Models (downloaded during setup / large ONNX files)
+backend/models/*
+!backend/models/.gitkeep

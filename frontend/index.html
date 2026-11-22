@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Who Is in the Photo? — Face Detection</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-card">
+    <header class="app-header">
+      <h1 class="app-title">Who Is in the Photo?</h1>
+      <p class="app-subtitle">Face Detection</p>
+    </header>
+
+    <main class="viewer-section">
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📷</div>
+        <p class="empty-title">Upload a photo to begin</p>
+        <p class="empty-subtitle">Supports JPG, PNG, WEBP group photographs</p>
+      </div>
+
+      <!-- Photo Stage with Canvas Overlay -->
+      <div class="photo-stage" id="photoStage" style="display: none;">
+        <img id="displayImage" alt="Uploaded group photo">
+        <canvas id="overlayCanvas"></canvas>
+      </div>
+    </main>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" accept="image/*" class="hidden-input">
+
+    <!-- Action Buttons -->
+    <div class="controls-toolbar">
+      <button type="button" class="btn btn-primary" id="uploadBtn">
+        <span class="btn-icon">📷</span> Upload Photo
+      </button>
+      <button type="button" class="btn btn-secondary" id="detectBtn" disabled>
+        <span class="btn-icon" id="detectIcon">🔍</span>
+        <span id="detectText">Detect Faces</span>
+      </button>
+    </div>
+
+    <!-- Status Line -->
+    <div class="status-container" id="statusContainer">
+      <p class="status-text" id="statusText">Select a group photo to get started</p>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
