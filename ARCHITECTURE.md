@@ -1,94 +1,181 @@
-# System Architecture (`ARCHITECTURE.md`)
+# 🏗 Architecture (`ARCHITECTURE.md`)
 
-## 1. System Overview
+## 1. System Architecture Diagram
 
-"Who Is in the Photo?" is an offline, privacy-first face recognition web application. The platform detects, embeds, and matches human faces from an uploaded group photo against a reference directory of known individuals.
+> Generated with [Archify](https://github.com/tt-a1i/archify)
 
-```mermaid
-flowchart TD
-    subgraph Client ["Client Browser (Vanilla JS + HTML5 Canvas)"]
-        UI["User Interface"]
-        FolderSelect["📁 Folder Input (webkitdirectory)"]
-        PhotoUpload["📷 Group Photo Upload (Drop / File)"]
-        ThresholdSlider["🎚️ Threshold Slider (0.20 - 0.70)"]
-        CanvasOverlay["🎨 Overlaid Canvas (Bounding Boxes & Labels)"]
-        ResultsList["📋 Results Sidebar & Highlights"]
-    end
+![Architecture Diagram](./architecture-diagram.png)
 
-    subgraph BackendServer ["Local Backend (FastAPI + Python 3.10+)"]
-        API["FastAPI Endpoints"]
-        RegEndpoint["POST /api/register-faces"]
-        RecEndpoint["POST /api/recognize"]
-        RematchEndpoint["POST /api/re-match"]
-        StaticServe["GET / (Static Files)"]
-    end
+---
 
-    subgraph FaceEngine ["Face Engine (InsightFace + ONNX Runtime)"]
-        SCRFD["Face Detector: SCRFD (buffalo_l)"]
-        ArcFace["Embedding Extractor: ArcFace 512-d"]
-        RefStore[("In-Memory Reference Embeddings\n{name: 512-d vector}")]
-        GroupCache[("Cached Group Embeddings & BBoxes")]
-        Matcher["Greedy 1-to-1 Cosine Similarity Matcher"]
-    end
+## 2. System Overview
 
-    %% Interactions
-    FolderSelect -->|Multipart Batch Upload| RegEndpoint
-    RegEndpoint --> SCRFD
-    SCRFD --> ArcFace
-    ArcFace --> RefStore
+The application follows a clean, decoupled **client-server architecture** with a Python backend and a browser-based frontend, running entirely locally and offline on the user's laptop.
 
-    PhotoUpload -->|Multipart Single Image| RecEndpoint
-    RecEndpoint --> SCRFD
-    SCRFD --> ArcFace
-    ArcFace --> GroupCache
-    GroupCache --> Matcher
-    RefStore --> Matcher
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                          BROWSER (Frontend)                            │
+│                                                                        │
+│  ┌──────────────┐   ┌──────────────┐   ┌────────────────────────────┐  │
+│  │ Folder       │   │ Group Photo  │   │ Visual Canvas & Results    │  │
+│  │ Ingestion    │   │ Ingestion    │   │ (Spotlight, Compare Modal) │  │
+│  │ (webkitdir)  │   │ (Drop zone)  │   │                            │  │
+│  └──────┬───────┘   └──────┬───────┘   └─────────────▲──────────────┘  │
+│         │                  │                         │                 │
+└─────────┼──────────────────┼─────────────────────────┼─────────────────┘
+          │                  │                         │
+     POST /api/         POST /api/               JSON response
+     register-faces     recognize            (bboxes, names, scores)
+          │                  │                         │
+┌─────────┼──────────────────┼─────────────────────────┼─────────────────┐
+│         ▼                  ▼                         │                 │
+│  ┌───────────────────────────────────────────────────┴──────────────┐  │
+│  │                FastAPI Application (main.py)                     │  │
+│  │                                                                  │  │
+│  │  /api/register-faces  →  Ingests folder, derives names, embeds   │  │
+│  │  /api/detect          →  Locates group faces at original scale   │  │
+│  │  /api/recognize       →  End-to-end recognition & greedy match   │  │
+│  │  /api/re-match        →  Instant threshold re-eval on cache      │  │
+│  │  /api/reset           →  Clears session memory and caches        │  │
+│  │  GET /                →  Serves static frontend (HTML/CSS/JS)    │  │
+│  └───────────────────────────────────┬──────────────────────────────┘  │
+│                                      │                                 │
+│  ┌───────────────────────────────────▼──────────────────────────────┐  │
+│  │                      FaceEngine (face_engine.py)                 │  │
+│  │                                                                  │  │
+│  │  ┌────────────────────────┐      ┌────────────────────────────┐  │  │
+│  │  │  SCRFD Face Detector   │─────▶│  ArcFace Feature Extractor │  │  │
+│  │  │  (det_10g.onnx)        │      │  (w600k_r50.onnx, 512-d)   │  │  │
+│  │  │  Auto-scales >4000px   │      │  5-pt affine normalization │  │  │
+│  │  └────────────────────────┘      └──────────────┬─────────────┘  │  │
+│  │                                                 │                │  │
+│  │  ┌──────────────────────────────────────────────▼─────────────┐  │  │
+│  │  │             Greedy Bipartite Matching Engine               │  │  │
+│  │  │                                                            │  │  │
+│  │  │  1. Pairwise Cosine Similarity: S = G · R^T                │  │  │
+│  │  │  2. Threshold Filter: S[i, j] >= tau (default 0.40)        │  │  │
+│  │  │  3. Greedy 1-to-1 Assignment (descending similarity)       │  │  │
+│  │  │  4. Unmatched / Sub-threshold Group Faces → "Unknown"      │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                  │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │                    In-Memory Session Store                 │  │  │
+│  │  │  registered_faces: { person_name -> 512-d ndarray }        │  │  │
+│  │  │  group_faces: [ { bbox, embedding, det_score } ]           │  │  │
+│  │  │  group_image_shape: (original_h, original_w)               │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│                        BACKEND SERVER (Python)                         │
+│                    Runs locally on http://127.0.0.1:8000               │
+└────────────────────────────────────────────────────────────────────────┘
 
-    ThresholdSlider -->|Threshold param| RematchEndpoint
-    RematchEndpoint --> Matcher
-
-    Matcher -->|JSON: BBoxes, Names, Confidences| API
-    API --> UI
-    UI --> CanvasOverlay
-    UI --> ResultsList
+┌────────────────────────────────────────────────────────────────────────┐
+│             InsightFace Model Weights (buffalo_l pack)                 │
+│              Stored locally in backend/models/models/                  │
+│              - det_10g.onnx (SCRFD multi-scale face detector)          │
+│              - w600k_r50.onnx (ArcFace ResNet-50 512-d recognizer)     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Component Breakdown
+## 3. Data Flow
 
-### A. Web Client (`frontend/`)
-- **Zero-Build Architecture:** Implemented in pure HTML5, CSS3, and standard ES6+ JavaScript. No node dependencies or bundlers required.
-- **Dynamic Canvas Overlay:** Synchronizes a transparent `<canvas>` strictly over the rendered dimensions of the group photo. Draws color-coded bounding boxes:
-  - **Green (`#10B981`):** Identified registered individuals.
-  - **Orange (`#F59E0B`):** Unidentified ("Unknown") individuals.
-- **Interactive Highlighting:** Two-way selection linking sidebar list items to specific bounding boxes on the canvas.
+### A. Reference Registration Flow
+```
+User Folder (50 files)
+  │
+  ▼
+Browser reads via <input webkitdirectory>
+  │
+  ▼
+POST /api/register-faces (Multipart form)
+  │
+  ▼
+FastAPI sanitizes filename ('Priya_Sharma.jpg' -> 'Priya Sharma')
+  │
+  ▼
+FaceEngine._prepare_image() -> InsightFace SCRFD
+  │ (If multiple faces -> picks largest bbox area; If no face -> skips & logs warning)
+  ▼
+ArcFace 5-point affine alignment -> 112×112 tensor -> 512-d L2-normalized vector
+  │
+  ▼
+Stored in-memory: registered_faces[name] = vector
+  │
+  ▼
+Returns JSON: { registered: 50, total_files: 50, warnings: [...] }
+```
 
-### B. REST API Layer (`backend/main.py`)
-- **Framework:** FastAPI running on Uvicorn.
-- **Endpoints:**
-  - `POST /api/register-faces`: Ingests multipart files from the reference folder, extracts face embeddings, populates reference dictionary, and yields diagnostics/warnings.
-  - `POST /api/recognize`: Ingests group photo, detects all faces at high resolution (1280px detection scale), generates ArcFace embeddings, runs greedy one-to-one matching, caches group embeddings, and returns bounding box coordinates and identities.
-  - `POST /api/re-match`: Re-evaluates cached group embeddings against reference vectors with an updated threshold in <5ms without re-running detection models.
-  - `GET /api/health`: Health status monitor.
+### B. Recognition Flow
+```
+Group Photo Upload
+  │
+  ▼
+POST /api/recognize (Multipart image)
+  │
+  ▼
+FaceEngine detects all faces via SCRFD -> extracts 512-d ArcFace embeddings
+  │
+  ▼
+Caches group embeddings and original bounding boxes in memory (group_faces)
+  │
+  ▼
+Computes pairwise Cosine Similarity Matrix: S = G · R^T
+  │
+  ▼
+Filters pairs where S[i, j] >= threshold (default 0.40)
+  │
+  ▼
+Greedy One-to-One Assignment (highest similarity pairs locked first)
+  │ (Guarantees no employee is assigned twice; non-matches marked "Unknown")
+  ▼
+Returns JSON: { faces: [...], total_detected: N, matched: M, unknown: U }
+  │
+  ▼
+Browser renders Canvas overlay (Green for matched, Amber for unknown),
+populates results sidebar, and caches original reference images for side-by-side comparison.
+```
 
-### C. Offline Face Engine (`backend/face_engine.py`)
-- **Detector:** SCRFD from InsightFace `buffalo_l` pack. Executes via ONNX Runtime on CPU.
-- **Embeddings:** ArcFace ResNet50 (512-dimensional L2-normalized float32 vectors).
-- **Matching Pipeline:**
-  1. $\mathbf{S} = \mathbf{G} \cdot \mathbf{R}^T \in \mathbb{R}^{M \times N}$ where $\mathbf{G}$ is $M \times 512$ and $\mathbf{R}$ is $N \times 512$.
-  2. Filter pairs where $S_{ij} \ge \tau$.
-  3. Sort pairs descending by similarity.
-  4. Greedily assign identities ensuring each person in the reference folder is matched at most once in the photo.
+### C. Real-Time Re-match Flow
+```
+User drags Similarity Threshold Slider (e.g. 0.40 -> 0.55)
+  │
+  ▼
+POST /api/re-match { "threshold": 0.55 }
+  │
+  ▼
+Re-runs matching logic on cached embeddings in <5ms (zero neural network inference)
+  │
+  ▼
+Returns updated classification JSON -> Browser redraws boxes and updates list
+```
 
 ---
 
-## 3. Trade-offs & Decisions
+## 4. Trade-offs & Decisions
 
-| Decision | What We Chose | What We Gave Up | Rationale |
+| Decision Area | Selected Approach | Alternative Rejected | Rationale |
 |---|---|---|---|
-| **Frontend Stack** | Vanilla HTML + CSS + JS | React / Vue / Vite | Guaranteed zero-friction startup on evaluator laptops without `npm install` or node version conflicts. |
-| **Model Pack** | InsightFace `buffalo_l` | Lightweight `buffalo_sc` or dlib | Slightly higher RAM / disk footprint (~300MB) in exchange for vastly superior recall on small, angled, and partially occluded faces. |
-| **Inference Engine** | ONNX Runtime (CPU) | PyTorch / CUDA | Eliminates multi-gigabyte GPU driver/toolkit dependencies; runs reliably on any modern laptop processor. |
-| **Matching Algorithm** | Greedy Bipartite Matching | Hungarian / Munkres Algorithm or Independent Argmax | Greedy matching is intuitive, runs in $O(K \log K)$ where $K$ is the number of valid pairs, and strictly prevents duplicate person assignments without distortion. |
-| **Re-matching Strategy** | Embedding Cache | Full re-detection on slider input | Sacrifices a negligible amount of memory to achieve real-time (<5ms) slider interactivity. |
+| **Face Detection** | RetinaFace / SCRFD (`buffalo_l`) | MediaPipe / dlib HOG | Group photos contain small, distant faces and side profiles. Missing a face during the demo is a critical failure. Accuracy is worth a few extra seconds. |
+| **Face Recognition** | ArcFace 512-d (`w600k_r50`) | dlib 128-d / FaceNet | With only 1 reference photo per person (extreme one-shot), ArcFace's angular margin loss minimizes false-positive collisions and leads open-set benchmarks. |
+| **Matching Algorithm** | Greedy Bipartite Assignment | Hungarian Algorithm / $k$-NN | Greedy assignment is intuitive, runs in $\mathcal{O}(K \log K)$, is easy to explain, and yields identical results when ArcFace margins are clean. |
+| **Frontend Stack** | Vanilla HTML5 + CSS3 + JS | React / Next.js / Vite | Zero build step. Eliminates Node.js version conflicts or `npm install` failures on evaluator laptops. |
+| **State Storage** | In-Memory Python Dictionaries | SQLite / Redis | 50 reference vectors of 512 floats require under $150\text{KB}$ of RAM. A database adds unnecessary dependencies and operational complexity. |
+| **Runtime Execution** | Local CPU (ONNX Runtime) | CUDA / GPU Acceleration | Guarantees universal compatibility across all evaluator Mac/Windows laptops without GPU drivers or CUDA toolkit dependencies. |
+| **Deployment Model** | Direct Python Server | Docker Container | Docker adds setup overhead and virtualization latency for the evaluator. Running `python main.py` is immediate. |
+| **Image Preprocessing** | Native Affine Alignment | Super-Resolution (ESRGAN) | ArcFace normalizes all faces to $112\times112$ internally. Super-resolution hallucinates artificial details that degrade similarity accuracy. |
+
+---
+
+## 5. Architectural Trade-offs
+
+### Accuracy vs. Speed
+- **The Choice:** Prioritizing **accuracy over raw speed**.
+- The `buffalo_l` pack is InsightFace’s highest accuracy model. Processing 50 reference photos takes $\approx 10\text{–}15$ seconds on CPU, while inference on a 10-person group photo takes $\approx 1.5\text{–}2$ seconds.
+- A lighter model (`buffalo_sc`) would execute faster but yields significantly lower recall on small faces. For a live demo on unseen data, high detection and recognition recall is paramount.
+
+### Simplicity vs. Feature Bloat
+- **The Choice:** A streamlined, reliable single-page experience over a complex multi-view dashboard.
+- Features such as multi-photo clustering, database persistence, and user authentication were intentionally excluded. The application solves the target problem with zero runtime friction and maximum stability.
