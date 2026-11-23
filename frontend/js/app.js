@@ -23,6 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const warningsToggleBtn = document.getElementById("warningsToggleBtn");
   const warningsCount = document.getElementById("warningsCount");
   const warningsList = document.getElementById("warningsList");
+  const folderAvatars = document.getElementById("folderAvatars");
+  const step1Card = document.getElementById("step1Card");
+  const step2Card = document.getElementById("step2Card");
+  const step3Card = document.getElementById("step3Card");
 
   // DOM Elements - Step 2 Group Photo
   const groupPhotoInput = document.getElementById("groupPhotoInput");
@@ -37,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const overlayCanvas = document.getElementById("overlayCanvas");
   const photoMeta = document.getElementById("photoMeta");
   const legend = document.getElementById("legend");
+  const summary = document.getElementById("summary");
 
   // DOM Elements - Selection bar
   const selectionEmpty = document.getElementById("selectionEmpty");
@@ -139,11 +144,12 @@ document.addEventListener("DOMContentLoaded", () => {
         body: formData,
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
+        throw new Error(data.detail || `Server returned HTTP ${response.status}`);
       }
 
-      const data = await response.json();
       folderProgressBar.style.width = "100%";
       folderProgressText.textContent = `Completed registration: ${data.registered} faces registered`;
 
@@ -153,6 +159,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Keep the original photos so matches can be compared against them
       setReferencePhotos(imageFiles);
+
+      renderAvatars();
+      step1Card.classList.add("is-done");
 
       // Success State UI
       folderBtn.disabled = false;
@@ -183,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Folder registration error:", err);
       folderBtn.disabled = false;
       folderBtn.className = "btn btn-primary";
-      folderBtn.innerHTML = `${ICONS.folder} Select folder`;
+      folderBtn.innerHTML = `${ICONS.folder} Select reference folder`;
       folderProgressBox.style.display = "none";
       alert(`Registration failed: ${err.message}`);
     }
@@ -207,6 +216,30 @@ document.addEventListener("DOMContentLoaded", () => {
       if (previous) URL.revokeObjectURL(previous); // duplicate names: last file wins, like the backend
       referencePhotos.set(name, URL.createObjectURL(file));
     });
+  }
+
+  /** Small stack of the registered reference photos, as a quick "what was loaded" check. */
+  function renderAvatars() {
+    folderAvatars.innerHTML = "";
+    const urls = Array.from(referencePhotos.values());
+    if (!urls.length) {
+      folderAvatars.style.display = "none";
+      return;
+    }
+    const shown = 8;
+    urls.slice(0, shown).forEach((url) => {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "";
+      folderAvatars.appendChild(img);
+    });
+    if (urls.length > shown) {
+      const more = document.createElement("span");
+      more.className = "more";
+      more.textContent = `+${urls.length - shown}`;
+      folderAvatars.appendChild(more);
+    }
+    folderAvatars.style.display = "flex";
   }
 
   // Toggle warnings list dropdown
@@ -272,6 +305,9 @@ document.addEventListener("DOMContentLoaded", () => {
     selectedFaceId = null;
     resultsPanel.style.display = "none";
     legend.style.display = "none";
+    summary.style.display = "none";
+    step2Card.classList.remove("is-done");
+    step3Card.classList.remove("is-done");
     photoMeta.textContent = file.name;
     updateSelectionBar();
 
@@ -293,7 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Run initial face detection
     groupPhotoBtn.disabled = true;
-    groupPhotoBtn.className = "btn btn-indigo";
+    groupPhotoBtn.className = "btn btn-primary";
     groupPhotoBtn.innerHTML = `${SPINNER} Detecting faces...`;
 
     const formData = new FormData();
@@ -318,6 +354,7 @@ document.addEventListener("DOMContentLoaded", () => {
       groupPhotoBtn.className = "btn btn-state-success";
       groupPhotoBtn.innerHTML = `${ICONS.check} Photo uploaded — ${data.total} faces detected`;
       changePhotoLink.style.display = "inline-block";
+      step2Card.classList.add("is-done");
       photoMeta.textContent = `${currentGroupFile.name} · ${data.total} faces`;
       updateLegend();
 
@@ -333,7 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error("Initial detection error:", err);
       groupPhotoBtn.disabled = false;
-      groupPhotoBtn.className = "btn btn-indigo";
+      groupPhotoBtn.className = "btn btn-primary";
       groupPhotoBtn.innerHTML = `${ICONS.camera} Upload photo`;
       alert(`Detection failed: ${err.message}`);
     }
@@ -763,6 +800,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderResultsPanel(data) {
     resultsPanel.style.display = "flex";
+    summary.style.display = "flex";
+    step3Card.classList.add("is-done");
 
     // Summary
     summaryTitle.textContent = "Recognition complete";
@@ -902,6 +941,78 @@ document.addEventListener("DOMContentLoaded", () => {
       drawCanvas();
     }
   }).observe(displayImage);
+
+  // Additional window resize listener fallback (Edge Case 15)
+  window.addEventListener("resize", debounce(() => {
+    if (photoStage.style.display !== "none") {
+      fitImageToStage();
+      drawCanvas();
+    }
+  }, 100));
+
+  // =========================================================================
+  // 9. Reset All Handler (Edge Case 21 & 25)
+  // =========================================================================
+  const resetAllBtn = document.getElementById("resetAllBtn");
+  resetAllBtn?.addEventListener("click", async () => {
+    if (!confirm("Reset all uploaded photos and recognition results?")) return;
+    try {
+      await fetch("/api/reset", { method: "POST" });
+    } catch (err) {
+      console.warn("Server reset call failed:", err);
+    }
+    // Reset state
+    referenceFolderReady = false;
+    groupPhotoReady = false;
+    isRecognized = false;
+    currentGroupFile = null;
+    currentFacesData = null;
+    selectedFaceId = null;
+    referencePhotos.forEach((url) => URL.revokeObjectURL(url));
+    referencePhotos.clear();
+
+    // Reset inputs
+    folderInput.value = "";
+    groupPhotoInput.value = "";
+
+    // Reset UI components
+    folderBtn.disabled = false;
+    folderBtn.className = "btn btn-primary";
+    folderBtn.innerHTML = `${ICONS.folder} Select reference folder`;
+    folderProgressBox.style.display = "none";
+    reuploadFolderLink.style.display = "none";
+    folderAvatars.style.display = "none";
+    folderAvatars.innerHTML = "";
+    warningsWrapper.style.display = "none";
+    warningsList.style.display = "none";
+    step1Card.classList.remove("is-done");
+
+    groupPhotoBtn.disabled = false;
+    groupPhotoBtn.className = "btn btn-primary";
+    groupPhotoBtn.innerHTML = `${ICONS.camera} Upload photo`;
+    changePhotoLink.style.display = "none";
+    step2Card.classList.remove("is-done");
+
+    recognizeBtn.disabled = true;
+    recognizeBtn.className = "btn btn-success";
+    recognizeBtn.innerHTML = `${ICONS.search} Recognize faces`;
+    step3Card.classList.remove("is-done");
+
+    emptyState.style.display = "flex";
+    photoStage.style.display = "none";
+    displayImage.src = "";
+    fullResImage.src = "";
+    const ctx = overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    if (photoMeta) photoMeta.style.display = "none";
+    if (legend) legend.style.display = "none";
+    if (summary) summary.style.display = "none";
+    if (resultsPanel) resultsPanel.style.display = "none";
+    if (resultsList) resultsList.innerHTML = "";
+    if (selectionInfo) selectionInfo.style.display = "none";
+    if (selectionEmpty) selectionEmpty.style.display = "flex";
+  });
 
   // Helper debounce
   function debounce(func, wait) {

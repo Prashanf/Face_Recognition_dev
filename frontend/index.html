@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Who Is in the Photo? — Face Recognition</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -13,46 +14,152 @@
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 8V6a2 2 0 0 1 2-2h2M17 4h2a2 2 0 0 1 2 2v2M21 16v2a2 2 0 0 1-2 2h-2M7 20H5a2 2 0 0 1-2-2v-2"></path>
-            <circle cx="12" cy="10" r="2.6"></circle>
-            <path d="M7.5 17c.7-2.2 2.4-3.4 4.5-3.4s3.8 1.2 4.5 3.4"></path>
+            <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+            <path d="M6.5 18c.8-2.4 2.9-4 5.5-4s4.7 1.6 5.5 4"></path>
           </svg>
         </span>
         <div class="brand-text">
           <h1 class="app-title">Who Is in the Photo?</h1>
-          <p class="app-subtitle">Identify people in group photos using face recognition</p>
+          <p class="app-subtitle">Find out who is in a group photo. Runs fully offline on this computer.</p>
         </div>
       </div>
-      <span class="local-badge" title="All processing happens on this machine">
-        <span class="local-dot"></span> Runs 100% offline
-      </span>
+      <div class="header-actions">
+        <span class="local-badge" title="No data leaves this computer">
+          <span class="local-dot"></span> 🔒 Runs 100% locally
+        </span>
+        <button type="button" class="btn-reset" id="resetAllBtn" title="Reset all photos and data">
+          <svg class="btn-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+          Reset All
+        </button>
+      </div>
     </header>
 
     <main class="main-container">
-      <!-- Left: photo viewer -->
-      <section class="viewer-column">
+      <!-- Left: steps -->
+      <aside class="controls-column">
+        <!-- Step 1 -->
+        <section class="step-card" id="step1Card">
+          <div class="step-head">
+            <span class="step-num">1</span>
+            <h2 class="step-title">Reference folder</h2>
+            <button type="button" class="link-btn" id="reuploadFolderLink" style="display: none;">Re-upload</button>
+          </div>
+          <p class="step-desc">Pick the folder with one photo per person. Each file name is the person's name, e.g. <code>Priya Sharma.jpg</code>.</p>
+
+          <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*" class="hidden-input">
+          <button type="button" class="btn btn-primary" id="folderBtn">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            Select reference folder
+          </button>
+
+          <div class="progress-box" id="folderProgressBox" style="display: none;">
+            <div class="progress-bar">
+              <div class="progress-bar-fill" id="folderProgressBar"></div>
+            </div>
+            <p class="progress-text" id="folderProgressText">Processing...</p>
+          </div>
+
+          <div class="avatars" id="folderAvatars" style="display: none;"></div>
+
+          <div class="warnings-wrapper" id="warningsWrapper" style="display: none;">
+            <button type="button" class="warnings-toggle-btn" id="warningsToggleBtn">
+              <svg class="btn-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <span id="warningsCount">0</span> warnings <span class="arrow-icon">&#9662;</span>
+            </button>
+            <ul class="warnings-list" id="warningsList" style="display: none;"></ul>
+          </div>
+        </section>
+
+        <!-- Step 2 -->
+        <section class="step-card" id="step2Card">
+          <div class="step-head">
+            <span class="step-num">2</span>
+            <h2 class="step-title">Group photo</h2>
+            <button type="button" class="link-btn" id="changePhotoLink" style="display: none;">Change</button>
+          </div>
+          <p class="step-desc">Upload one photo with the people you want to identify.</p>
+
+          <input type="file" id="groupPhotoInput" accept="image/*" class="hidden-input">
+          <div class="drop-target" id="groupDropTarget">
+            <button type="button" class="btn btn-primary" id="groupPhotoBtn">
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              Upload photo
+            </button>
+          </div>
+        </section>
+
+        <!-- Step 3 -->
+        <section class="step-card" id="step3Card">
+          <div class="step-head">
+            <span class="step-num">3</span>
+            <h2 class="step-title">Results</h2>
+          </div>
+          <p class="step-desc">Match every detected face against the reference folder.</p>
+
+          <button type="button" class="btn btn-success" id="recognizeBtn" disabled>
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Recognize faces
+          </button>
+
+          <div class="threshold-container">
+            <div class="threshold-header">
+              <label for="thresholdSlider" class="threshold-label">Similarity threshold</label>
+              <span class="threshold-val-badge" id="thresholdValue">0.40</span>
+            </div>
+            <input type="range" id="thresholdSlider" min="0.20" max="0.70" step="0.05" value="0.40">
+            <div class="threshold-scale">
+              <span>Stricter</span>
+              <span>Lenient</span>
+            </div>
+          </div>
+
+          <!-- Results list (hidden until recognition runs) -->
+          <div class="results-panel" id="resultsPanel" style="display: none;">
+            <div class="results-summary-header">
+              <h3 class="results-title" id="summaryTitle">Recognition results</h3>
+              <div class="proportion-bar" id="proportionBar">
+                <div class="proportion-matched" id="proportionMatched" style="width: 0%;"></div>
+                <div class="proportion-unknown" id="proportionUnknown" style="width: 0%;"></div>
+              </div>
+            </div>
+            <div class="results-scroll-list" id="resultsList"></div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Right: stage -->
+      <section class="stage">
         <div class="viewer-toolbar">
           <div class="viewer-heading">
             <h2 class="viewer-title">Group photo</h2>
             <span class="viewer-meta" id="photoMeta"></span>
           </div>
-          <div class="legend" id="legend" style="display: none;">
-            <span class="legend-item"><i class="legend-dot dot-detected"></i>Detected</span>
-            <span class="legend-item"><i class="legend-dot dot-matched"></i>Identified</span>
-            <span class="legend-item"><i class="legend-dot dot-unknown"></i>Unknown</span>
+          <div class="viewer-tools">
+            <div class="summary" id="summary" style="display: none;">
+              <span class="count-ok"><b id="statMatched">0</b> identified</span>
+              <span class="count-unknown"><b id="statUnknown">0</b> unknown</span>
+              <span class="count-total"><b id="statTotal">0</b> detected</span>
+            </div>
+            <div class="legend" id="legend" style="display: none;">
+              <span class="legend-item"><i class="legend-dot dot-detected"></i>Detected</span>
+              <span class="legend-item"><i class="legend-dot dot-matched"></i>Identified</span>
+              <span class="legend-item"><i class="legend-dot dot-unknown"></i>Unknown</span>
+            </div>
           </div>
         </div>
 
         <div class="photo-viewer-card" id="viewerCard">
           <!-- Empty state -->
           <div class="empty-state" id="emptyState">
-            <svg class="empty-art" viewBox="0 0 160 120" fill="none" aria-hidden="true">
-              <rect x="14" y="14" width="132" height="92" rx="14" class="art-frame"/>
-              <path d="M14 38V28a14 14 0 0 1 14-14h10M122 14h10a14 14 0 0 1 14 14v10M146 82v10a14 14 0 0 1-14 14h-10M38 106H28a14 14 0 0 1-14-14V82" class="art-corners"/>
-              <circle cx="58" cy="54" r="11" class="art-head"/>
-              <path d="M38 88c2-12 10-18 20-18s18 6 20 18" class="art-body"/>
-              <circle cx="102" cy="50" r="9" class="art-head art-head-2"/>
-              <path d="M85 86c2-10 8-15 17-15s15 5 17 15" class="art-body art-body-2"/>
+            <svg class="empty-art" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+              <circle cx="60" cy="60" r="56" class="art-disc"/>
+              <rect x="22" y="34" width="76" height="52" rx="8" class="art-frame"/>
+              <circle cx="44" cy="56" r="7" class="art-head"/>
+              <path d="M32 78c1.5-7 6.5-11 12-11s10.5 4 12 11" class="art-body"/>
+              <circle cx="76" cy="56" r="7" class="art-head"/>
+              <path d="M64 78c1.5-7 6.5-11 12-11s10.5 4 12 11" class="art-body"/>
+              <path d="M28 44v-6a4 4 0 0 1 4-4h6M92 44v-6a4 4 0 0 0-4-4h-6" class="art-corners"/>
             </svg>
             <p class="empty-title">Drop a group photo here</p>
             <p class="empty-subtitle">or click to browse &middot; JPG, PNG, WebP</p>
@@ -91,110 +198,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Right: steps + results -->
-      <aside class="controls-column">
-        <div class="control-panel-card">
-          <!-- Step 1 -->
-          <div class="step">
-            <div class="step-head">
-              <span class="step-num">1</span>
-              <div class="step-text">
-                <h2 class="step-title">Reference folder</h2>
-                <p class="step-desc">Individual photos &mdash; filenames become names.</p>
-              </div>
-              <button type="button" class="link-btn" id="reuploadFolderLink" style="display: none;">Re-upload</button>
-            </div>
-
-            <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*" class="hidden-input">
-            <button type="button" class="btn btn-primary" id="folderBtn">
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              Select folder
-            </button>
-
-            <div class="progress-box" id="folderProgressBox" style="display: none;">
-              <div class="progress-bar">
-                <div class="progress-bar-fill" id="folderProgressBar"></div>
-              </div>
-              <p class="progress-text" id="folderProgressText">Processing...</p>
-            </div>
-
-            <div class="warnings-wrapper" id="warningsWrapper" style="display: none;">
-              <button type="button" class="warnings-toggle-btn" id="warningsToggleBtn">
-                <svg class="btn-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                <span id="warningsCount">0</span> warnings <span class="arrow-icon">&#9662;</span>
-              </button>
-              <ul class="warnings-list" id="warningsList" style="display: none;"></ul>
-            </div>
-          </div>
-
-          <!-- Step 2 -->
-          <div class="step">
-            <div class="step-head">
-              <span class="step-num">2</span>
-              <div class="step-text">
-                <h2 class="step-title">Group photo</h2>
-                <p class="step-desc">Upload the photo to identify people in.</p>
-              </div>
-              <button type="button" class="link-btn" id="changePhotoLink" style="display: none;">Change</button>
-            </div>
-
-            <input type="file" id="groupPhotoInput" accept="image/*" class="hidden-input">
-            <div class="drop-target" id="groupDropTarget">
-              <button type="button" class="btn btn-indigo" id="groupPhotoBtn">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                Upload photo
-              </button>
-            </div>
-          </div>
-
-          <!-- Step 3 -->
-          <div class="step step-last">
-            <div class="step-head">
-              <span class="step-num">3</span>
-              <div class="step-text">
-                <h2 class="step-title">Recognize</h2>
-                <p class="step-desc">Match detected faces to the reference folder.</p>
-              </div>
-            </div>
-
-            <button type="button" class="btn btn-success" id="recognizeBtn" disabled>
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              Recognize faces
-            </button>
-
-            <div class="threshold-container">
-              <div class="threshold-header">
-                <label for="thresholdSlider" class="threshold-label">Similarity threshold</label>
-                <span class="threshold-val-badge" id="thresholdValue">0.40</span>
-              </div>
-              <input type="range" id="thresholdSlider" min="0.20" max="0.70" step="0.05" value="0.40">
-              <div class="threshold-scale">
-                <span>Stricter</span>
-                <span>Lenient</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Results -->
-        <div class="results-panel-card" id="resultsPanel" style="display: none;">
-          <div class="results-summary-header">
-            <h3 class="results-title" id="summaryTitle">Recognition results</h3>
-            <div class="stat-row">
-              <div class="stat stat-matched"><span class="stat-num" id="statMatched">0</span><span class="stat-label">Identified</span></div>
-              <div class="stat stat-unknown"><span class="stat-num" id="statUnknown">0</span><span class="stat-label">Unknown</span></div>
-              <div class="stat stat-total"><span class="stat-num" id="statTotal">0</span><span class="stat-label">Detected</span></div>
-            </div>
-            <div class="proportion-bar" id="proportionBar">
-              <div class="proportion-matched" id="proportionMatched" style="width: 0%;"></div>
-              <div class="proportion-unknown" id="proportionUnknown" style="width: 0%;"></div>
-            </div>
-          </div>
-
-          <div class="results-scroll-list" id="resultsList"></div>
-        </div>
-      </aside>
     </main>
   </div>
 
