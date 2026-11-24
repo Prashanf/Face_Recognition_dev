@@ -87,8 +87,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const SPINNER = '<span class="spinner"></span>';
 
   // Face colors (shared by canvas, cards and selection bar)
-  const COLOR_DETECTED = "#3B82F6";
-  const COLOR_MATCHED = "#10B981";
+  const COLOR_DETECTED = "#0aa5c4";
+  const COLOR_MATCHED = "#22C55E";
   const COLOR_UNKNOWN = "#F59E0B";
   const MAX_UPSCALE = 3; // low-res photos are enlarged at most this much
 
@@ -575,7 +575,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (selected) {
       const r = faceRect(selected, scaleX, scaleY);
       ctx.save();
-      ctx.fillStyle = "rgba(8, 12, 24, 0.6)";
+      ctx.fillStyle = "rgba(6, 16, 20, 0.6)";
       ctx.beginPath();
       ctx.rect(0, 0, cssW, cssH);
       if (ctx.roundRect) {
@@ -789,7 +789,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function setSelectionColors(color) {
-    const ink = color === COLOR_MATCHED ? "#047857" : color === COLOR_UNKNOWN ? "#b45309" : "#1d4ed8";
+    const ink = color === COLOR_MATCHED ? "#047857" : color === COLOR_UNKNOWN ? "#b45309" : "#0e7490";
     selectionInfo.style.setProperty("--sel-color", color);
     selectionInfo.style.setProperty("--sel-ink", ink);
   }
@@ -1005,7 +1005,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-    if (photoMeta) photoMeta.style.display = "none";
+    if (photoMeta) photoMeta.textContent = "";
     if (legend) legend.style.display = "none";
     if (summary) summary.style.display = "none";
     if (resultsPanel) resultsPanel.style.display = "none";
